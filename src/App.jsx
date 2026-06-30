@@ -18,31 +18,21 @@ const EXERCISES = ["Running","Cycling","Gym","Swimming","Yoga","HIIT","Walking",
 const GOALS = ["Save RM500","Exercise 3x/week","Drink 2L water daily","Sleep 8 hours","Read 1 book","Cook at home","No takeaway week","Custom"];
 
 const COLORS = {
-  bg: "#0d0d0f",
-  surface: "#16161a",
-  card: "#1e1e24",
-  border: "#2a2a33",
-  accent: "#6c63ff",
-  accentSoft: "#6c63ff22",
-  green: "#22d3a5",
-  red: "#ff5f6d",
-  amber: "#f59e0b",
-  text: "#e8e8f0",
-  muted: "#6b6b80",
-  zakuan: "#6c63ff",
-  izyan: "#f472b6",
+  bg: "#0d0d0f", surface: "#16161a", card: "#1e1e24", border: "#2a2a33",
+  accent: "#6c63ff", green: "#22d3a5", red: "#ff5f6d", amber: "#f59e0b",
+  text: "#e8e8f0", muted: "#6b6b80", zakuan: "#6c63ff", izyan: "#f472b6",
 };
 
 const today = () => new Date().toISOString().split("T")[0];
 const fmt = (n) => `RM ${Number(n || 0).toFixed(2)}`;
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 function Tab({ label, active, onClick, color }) {
   return (
     <button onClick={onClick} style={{
       padding: "8px 18px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
       background: active ? (color || COLORS.accent) : "transparent",
-      color: active ? "#fff" : COLORS.muted,
-      transition: "all 0.2s",
+      color: active ? "#fff" : COLORS.muted, transition: "all 0.2s",
     }}>{label}</button>
   );
 }
@@ -77,15 +67,6 @@ function Input({ label, type = "text", value, onChange, options }) {
   );
 }
 
-function Stat({ label, value, color }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: color || COLORS.text, letterSpacing: -0.5 }}>{value}</div>
-      <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>{label}</div>
-    </div>
-  );
-}
-
 function Toast({ msg, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t); }, []);
   return (
@@ -97,96 +78,221 @@ function Toast({ msg, onClose }) {
   );
 }
 
-function Dashboard() {
-  const [stats, setStats] = useState({ monthSpend: 0, zakuan: 0, izyan: 0, workouts: 0, water: 0, goals: 0 });
-  const [breakdown, setBreakdown] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const now = new Date();
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-30`;
-      
-      const [exp, fit, goals] = await Promise.all([
-        supabase.from("expenses").select("*"),
-        supabase.from("fitness").select("*"),
-        supabase.from("goals").select("*"),
-      ]);
-
-      const expenses = exp.data || [];
-      const zakuan = expenses.filter(e => e.person === "Zakuan").reduce((s, e) => s + Number(e.amount), 0);
-      const izyan = expenses.filter(e => e.person === "Izyan").reduce((s, e) => s + Number(e.amount), 0);
-
-      const catMap = {};
-      expenses.forEach(e => {
-        if (!catMap[e.category]) catMap[e.category] = { z: 0, i: 0 };
-        if (e.person === "Zakuan") catMap[e.category].z += Number(e.amount);
-        else catMap[e.category].i += Number(e.amount);
-      });
-      const total = zakuan + izyan;
-      const bd = Object.entries(catMap).map(([cat, v]) => ({
-        cat, z: v.z, i: v.i, combined: v.z + v.i,
-        pct: total ? Math.round(((v.z + v.i) / total) * 100) : 0
-      })).sort((a, b) => b.combined - a.combined);
-
-      const fitData = fit.data || [];
-      const waterEntries = fitData.filter(f => f.water);
-      const avgWater = waterEntries.length ? (waterEntries.reduce((s, f) => s + Number(f.water), 0) / waterEntries.length).toFixed(1) : 0;
-      const doneGoals = (goals.data || []).filter(g => g.done === 1).length;
-
-      setStats({ monthSpend: total, zakuan, izyan, workouts: fitData.length, water: avgWater, goals: doneGoals });
-      setBreakdown(bd);
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  const month = new Date().toLocaleString("en-MY", { month: "long", year: "numeric" });
-
+// ── MONTH SELECTOR ────────────────────────────────────────────────────────────
+function MonthSelector({ year, month, onChange }) {
+  function prev() {
+    if (month === 0) onChange(year - 1, 11);
+    else onChange(year, month - 1);
+  }
+  function next() {
+    const now = new Date();
+    if (year === now.getFullYear() && month === now.getMonth()) return;
+    if (month === 11) onChange(year + 1, 0);
+    else onChange(year, month + 1);
+  }
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return year === now.getFullYear() && month === now.getMonth();
+  };
   return (
-    <div>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 1 }}>This Month · {month}</div>
-        <div style={{ fontSize: 28, fontWeight: 900, color: COLORS.text, marginTop: 4, letterSpacing: -1 }}>
-          {loading ? "—" : fmt(stats.monthSpend)}
-        </div>
-        <div style={{ fontSize: 13, color: COLORS.muted }}>combined spend</div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <button onClick={prev} style={{
+        background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text,
+        borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 16,
+      }}>‹</button>
+      <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>
+        {MONTHS[month]} {year}
       </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        <Card><Stat label="Zakuan" value={loading ? "—" : fmt(stats.zakuan)} color={COLORS.zakuan} /></Card>
-        <Card><Stat label="Izyan" value={loading ? "—" : fmt(stats.izyan)} color={COLORS.izyan} /></Card>
-        <Card><Stat label="Workouts" value={loading ? "—" : stats.workouts} color={COLORS.green} /></Card>
-        <Card><Stat label="Avg Water" value={loading ? "—" : `${stats.water}L`} color={COLORS.amber} /></Card>
-      </div>
-
-      <Card>
-        <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Expense Breakdown</div>
-        {loading ? <div style={{ color: COLORS.muted, fontSize: 13 }}>Loading…</div> :
-          breakdown.length === 0 ? <div style={{ color: COLORS.muted, fontSize: 13 }}>No expenses this month yet.</div> :
-          breakdown.map(b => (
-            <div key={b.cat} style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 13, color: COLORS.text }}>{b.cat}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{fmt(b.combined)}</span>
-              </div>
-              <div style={{ height: 4, background: COLORS.border, borderRadius: 99, overflow: "hidden" }}>
-                <div style={{ width: `${b.pct}%`, height: "100%", background: COLORS.accent, borderRadius: 99 }} />
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 3 }}>
-                <span style={{ fontSize: 11, color: COLORS.zakuan }}>Z: {fmt(b.z)}</span>
-                <span style={{ fontSize: 11, color: COLORS.izyan }}>I: {fmt(b.i)}</span>
-                <span style={{ fontSize: 11, color: COLORS.muted, marginLeft: "auto" }}>{b.pct}%</span>
-              </div>
-            </div>
-          ))
-        }
-      </Card>
+      <button onClick={next} style={{
+        background: COLORS.card, border: `1px solid ${COLORS.border}`,
+        color: isCurrentMonth() ? COLORS.muted : COLORS.text,
+        borderRadius: 8, padding: "6px 14px", cursor: isCurrentMonth() ? "default" : "pointer", fontSize: 16,
+        opacity: isCurrentMonth() ? 0.3 : 1,
+      }}>›</button>
     </div>
   );
 }
 
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function Dashboard() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+  const [dashTab, setDashTab] = useState("expenses");
+  const [expenses, setExpenses] = useState([]);
+  const [fitness, setFitness] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const monthStr = String(month + 1).padStart(2, "0");
+      const start = `${year}-${monthStr}-01`;
+      const end = `${year}-${monthStr}-31`;
+      const [exp, fit, gls] = await Promise.all([
+        supabase.from("expenses").select("*").gte("date", start).lte("date", end),
+        supabase.from("fitness").select("*").gte("date", start).lte("date", end),
+        supabase.from("goals").select("*").gte("date", start).lte("date", end),
+      ]);
+      setExpenses(exp.data || []);
+      setFitness(fit.data || []);
+      setGoals(gls.data || []);
+      setLoading(false);
+    }
+    load();
+  }, [year, month]);
+
+  const zakuanTotal = expenses.filter(e => e.person === "Zakuan").reduce((s, e) => s + Number(e.amount), 0);
+  const izyanTotal = expenses.filter(e => e.person === "Izyan").reduce((s, e) => s + Number(e.amount), 0);
+  const total = zakuanTotal + izyanTotal;
+
+  const catMap = {};
+  expenses.forEach(e => {
+    if (!catMap[e.category]) catMap[e.category] = { z: 0, i: 0 };
+    if (e.person === "Zakuan") catMap[e.category].z += Number(e.amount);
+    else catMap[e.category].i += Number(e.amount);
+  });
+  const breakdown = Object.entries(catMap).map(([cat, v]) => ({
+    cat, z: v.z, i: v.i, combined: v.z + v.i,
+    pct: total ? Math.round(((v.z + v.i) / total) * 100) : 0
+  })).sort((a, b) => b.combined - a.combined);
+
+  const waterEntries = fitness.filter(f => f.water);
+  const avgWater = waterEntries.length ? (waterEntries.reduce((s, f) => s + Number(f.water), 0) / waterEntries.length).toFixed(1) : 0;
+  const doneGoals = goals.filter(g => g.done === 1).length;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 28, fontWeight: 900, color: COLORS.text, letterSpacing: -1 }}>
+          {loading ? "—" : fmt(total)}
+        </div>
+        <div style={{ fontSize: 13, color: COLORS.muted }}>combined spend</div>
+      </div>
+
+      <MonthSelector year={year} month={month} onChange={(y, m) => setYear(y) || setMonth(m)} />
+
+      {/* Summary row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <Card><div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.zakuan }}>{loading ? "—" : fmt(zakuanTotal)}</div>
+          <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>Zakuan</div>
+        </div></Card>
+        <Card><div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.izyan }}>{loading ? "—" : fmt(izyanTotal)}</div>
+          <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>Izyan</div>
+        </div></Card>
+        <Card><div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.green }}>{loading ? "—" : fitness.length}</div>
+          <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>Workouts</div>
+        </div></Card>
+        <Card><div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.amber }}>{loading ? "—" : `${doneGoals} / ${goals.length}`}</div>
+          <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>Goals Done</div>
+        </div></Card>
+      </div>
+
+      {/* Dash tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        <Tab label="Expenses" active={dashTab === "expenses"} onClick={() => setDashTab("expenses")} />
+        <Tab label="Fitness" active={dashTab === "fitness"} onClick={() => setDashTab("fitness")} color={COLORS.green} />
+        <Tab label="Goals" active={dashTab === "goals"} onClick={() => setDashTab("goals")} color={COLORS.amber} />
+      </div>
+
+      {/* Expenses tab */}
+      {dashTab === "expenses" && (
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Breakdown</div>
+          {loading ? <div style={{ color: COLORS.muted, fontSize: 13 }}>Loading…</div> :
+            breakdown.length === 0 ? <div style={{ color: COLORS.muted, fontSize: 13 }}>No expenses this month.</div> :
+            breakdown.map(b => (
+              <div key={b.cat} style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: COLORS.text }}>{b.cat}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{fmt(b.combined)}</span>
+                </div>
+                <div style={{ height: 4, background: COLORS.border, borderRadius: 99, overflow: "hidden" }}>
+                  <div style={{ width: `${b.pct}%`, height: "100%", background: COLORS.accent, borderRadius: 99 }} />
+                </div>
+                <div style={{ display: "flex", gap: 10, marginTop: 3 }}>
+                  <span style={{ fontSize: 11, color: COLORS.zakuan }}>Z: {fmt(b.z)}</span>
+                  <span style={{ fontSize: 11, color: COLORS.izyan }}>I: {fmt(b.i)}</span>
+                  <span style={{ fontSize: 11, color: COLORS.muted, marginLeft: "auto" }}>{b.pct}%</span>
+                </div>
+              </div>
+            ))
+          }
+        </Card>
+      )}
+
+      {/* Fitness tab */}
+      {dashTab === "fitness" && (
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Fitness Log</div>
+          {loading ? <div style={{ color: COLORS.muted, fontSize: 13 }}>Loading…</div> :
+            fitness.length === 0 ? <div style={{ color: COLORS.muted, fontSize: 13 }}>No workouts this month.</div> : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.green }}>{fitness.length}</div>
+                  <div style={{ fontSize: 11, color: COLORS.muted }}>Total Workouts</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.amber }}>{avgWater}L</div>
+                  <div style={{ fontSize: 11, color: COLORS.muted }}>Avg Water</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.accent }}>
+                    {fitness.filter(f => f.sleep).length ? (fitness.reduce((s, f) => s + (Number(f.sleep) || 0), 0) / fitness.filter(f => f.sleep).length).toFixed(1) : 0}h
+                  </div>
+                  <div style={{ fontSize: 11, color: COLORS.muted }}>Avg Sleep</div>
+                </div>
+              </div>
+              {fitness.map(f => (
+                <div key={f.id} style={{ padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{f.exercise || "Workout"}</span>
+                    <span style={{ fontSize: 12, color: f.person === "Zakuan" ? COLORS.zakuan : COLORS.izyan }}>{f.person}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
+                    {f.date}{f.sets ? ` · ${f.sets} sets` : ""}{f.reps ? ` × ${f.reps} reps` : ""}{f.water ? ` · 💧${f.water}L` : ""}{f.sleep ? ` · 😴${f.sleep}h` : ""}
+                  </div>
+                  {f.notes && <div style={{ fontSize: 12, color: COLORS.muted }}>{f.notes}</div>}
+                </div>
+              ))}
+            </>
+          )}
+        </Card>
+      )}
+
+      {/* Goals tab */}
+      {dashTab === "goals" && (
+        <Card>
+          <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Goals</div>
+          {loading ? <div style={{ color: COLORS.muted, fontSize: 13 }}>Loading…</div> :
+            goals.length === 0 ? <div style={{ color: COLORS.muted, fontSize: 13 }}>No goals this month.</div> :
+            goals.map(g => (
+              <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{g.goal}</div>
+                  <div style={{ fontSize: 12, color: COLORS.muted }}>{g.date} · <span style={{ color: g.person === "Zakuan" ? COLORS.zakuan : COLORS.izyan }}>{g.person}</span></div>
+                </div>
+                <div style={{
+                  fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                  background: g.done === 1 ? COLORS.green + "33" : COLORS.border,
+                  color: g.done === 1 ? COLORS.green : COLORS.muted,
+                }}>{g.done === 1 ? "✓ Done" : "Pending"}</div>
+              </div>
+            ))
+          }
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── ADD EXPENSE ───────────────────────────────────────────────────────────────
 function AddExpense({ onSaved }) {
   const [form, setForm] = useState({ date: today(), person: "", amount: "", category: "", description: "" });
   const [saving, setSaving] = useState(false);
@@ -211,20 +317,20 @@ function AddExpense({ onSaved }) {
       <Input label="Description (optional)" value={form.description} onChange={set("description")} />
       <button onClick={save} disabled={saving || !form.person || !form.amount || !form.category} style={{
         width: "100%", padding: "14px", borderRadius: 12, border: "none", cursor: "pointer",
-        background: COLORS.accent, color: "#fff", fontWeight: 800, fontSize: 16,
-        opacity: saving ? 0.6 : 1,
+        background: COLORS.accent, color: "#fff", fontWeight: 800, fontSize: 16, opacity: saving ? 0.6 : 1,
       }}>{saving ? "Saving…" : "Save Expense"}</button>
     </div>
   );
 }
 
+// ── EXPENSE HISTORY ───────────────────────────────────────────────────────────
 function ExpenseHistory() {
   const [rows, setRows] = useState([]);
   const [filter, setFilter] = useState("All");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from("expenses").select("*").order("date", { ascending: false }).limit(60)
+    supabase.from("expenses").select("*").order("date", { ascending: false }).limit(100)
       .then(({ data }) => { setRows(data || []); setLoading(false); });
   }, []);
 
@@ -259,6 +365,7 @@ function ExpenseHistory() {
   );
 }
 
+// ── FITNESS ───────────────────────────────────────────────────────────────────
 function AddFitness({ onSaved }) {
   const [form, setForm] = useState({ date: today(), person: "", exercise: "", sets: "", reps: "", water: "", sleep: "", notes: "" });
   const [saving, setSaving] = useState(false);
@@ -294,13 +401,13 @@ function AddFitness({ onSaved }) {
       <Input label="Notes" value={form.notes} onChange={set("notes")} />
       <button onClick={save} disabled={saving || !form.person} style={{
         width: "100%", padding: "14px", borderRadius: 12, border: "none", cursor: "pointer",
-        background: COLORS.green, color: "#0d0d0f", fontWeight: 800, fontSize: 16,
-        opacity: saving ? 0.6 : 1,
+        background: COLORS.green, color: "#0d0d0f", fontWeight: 800, fontSize: 16, opacity: saving ? 0.6 : 1,
       }}>{saving ? "Saving…" : "Save Workout"}</button>
     </div>
   );
 }
 
+// ── GOALS ─────────────────────────────────────────────────────────────────────
 function GoalsTab({ onSaved }) {
   const [form, setForm] = useState({ date: today(), person: "", goal: "", done: 0 });
   const [rows, setRows] = useState([]);
@@ -340,7 +447,6 @@ function GoalsTab({ onSaved }) {
         background: COLORS.amber, color: "#0d0d0f", fontWeight: 800, fontSize: 16,
         opacity: saving ? 0.6 : 1, marginBottom: 24,
       }}>{saving ? "Saving…" : "Save Goal"}</button>
-
       {rows.map(r => (
         <div key={r.id} style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -361,6 +467,7 @@ function GoalsTab({ onSaved }) {
   );
 }
 
+// ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [subTab, setSubTab] = useState("add");
