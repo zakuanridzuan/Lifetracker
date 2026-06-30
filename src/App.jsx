@@ -78,7 +78,6 @@ function Toast({ msg, onClose }) {
   );
 }
 
-// ── MONTH SELECTOR ────────────────────────────────────────────────────────────
 function MonthSelector({ year, month, onChange }) {
   function prev() {
     if (month === 0) onChange(year - 1, 11);
@@ -90,30 +89,24 @@ function MonthSelector({ year, month, onChange }) {
     if (month === 11) onChange(year + 1, 0);
     else onChange(year, month + 1);
   }
-  const isCurrentMonth = () => {
-    const now = new Date();
-    return year === now.getFullYear() && month === now.getMonth();
-  };
+  const isCurrentMonth = year === new Date().getFullYear() && month === new Date().getMonth();
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
       <button onClick={prev} style={{
         background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.text,
         borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 16,
       }}>‹</button>
-      <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>
-        {MONTHS[month]} {year}
-      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{MONTHS[month]} {year}</div>
       <button onClick={next} style={{
         background: COLORS.card, border: `1px solid ${COLORS.border}`,
-        color: isCurrentMonth() ? COLORS.muted : COLORS.text,
-        borderRadius: 8, padding: "6px 14px", cursor: isCurrentMonth() ? "default" : "pointer", fontSize: 16,
-        opacity: isCurrentMonth() ? 0.3 : 1,
+        color: isCurrentMonth ? COLORS.muted : COLORS.text,
+        borderRadius: 8, padding: "6px 14px", cursor: isCurrentMonth ? "default" : "pointer", fontSize: 16,
+        opacity: isCurrentMonth ? 0.3 : 1,
       }}>›</button>
     </div>
   );
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -129,7 +122,9 @@ function Dashboard() {
       setLoading(true);
       const monthStr = String(month + 1).padStart(2, "0");
       const start = `${year}-${monthStr}-01`;
-      const end = `${year}-${monthStr}-31`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const end = `${year}-${monthStr}-${String(lastDay).padStart(2, "0")}`;
+
       const [exp, fit, gls] = await Promise.all([
         supabase.from("expenses").select("*").gte("date", start).lte("date", end),
         supabase.from("fitness").select("*").gte("date", start).lte("date", end),
@@ -160,6 +155,8 @@ function Dashboard() {
 
   const waterEntries = fitness.filter(f => f.water);
   const avgWater = waterEntries.length ? (waterEntries.reduce((s, f) => s + Number(f.water), 0) / waterEntries.length).toFixed(1) : 0;
+  const sleepEntries = fitness.filter(f => f.sleep);
+  const avgSleep = sleepEntries.length ? (sleepEntries.reduce((s, f) => s + Number(f.sleep), 0) / sleepEntries.length).toFixed(1) : 0;
   const doneGoals = goals.filter(g => g.done === 1).length;
 
   return (
@@ -171,9 +168,8 @@ function Dashboard() {
         <div style={{ fontSize: 13, color: COLORS.muted }}>combined spend</div>
       </div>
 
-      <MonthSelector year={year} month={month} onChange={(y, m) => setYear(y) || setMonth(m)} />
+      <MonthSelector year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
 
-      {/* Summary row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
         <Card><div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.zakuan }}>{loading ? "—" : fmt(zakuanTotal)}</div>
@@ -193,14 +189,12 @@ function Dashboard() {
         </div></Card>
       </div>
 
-      {/* Dash tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         <Tab label="Expenses" active={dashTab === "expenses"} onClick={() => setDashTab("expenses")} />
         <Tab label="Fitness" active={dashTab === "fitness"} onClick={() => setDashTab("fitness")} color={COLORS.green} />
         <Tab label="Goals" active={dashTab === "goals"} onClick={() => setDashTab("goals")} color={COLORS.amber} />
       </div>
 
-      {/* Expenses tab */}
       {dashTab === "expenses" && (
         <Card>
           <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Breakdown</div>
@@ -226,26 +220,23 @@ function Dashboard() {
         </Card>
       )}
 
-      {/* Fitness tab */}
       {dashTab === "fitness" && (
         <Card>
           <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Fitness Log</div>
           {loading ? <div style={{ color: COLORS.muted, fontSize: 13 }}>Loading…</div> :
             fitness.length === 0 ? <div style={{ color: COLORS.muted, fontSize: 13 }}>No workouts this month.</div> : (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${COLORS.border}` }}>
                 <div style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.green }}>{fitness.length}</div>
-                  <div style={{ fontSize: 11, color: COLORS.muted }}>Total Workouts</div>
+                  <div style={{ fontSize: 11, color: COLORS.muted }}>Workouts</div>
                 </div>
                 <div style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.amber }}>{avgWater}L</div>
                   <div style={{ fontSize: 11, color: COLORS.muted }}>Avg Water</div>
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.accent }}>
-                    {fitness.filter(f => f.sleep).length ? (fitness.reduce((s, f) => s + (Number(f.sleep) || 0), 0) / fitness.filter(f => f.sleep).length).toFixed(1) : 0}h
-                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.accent }}>{avgSleep}h</div>
                   <div style={{ fontSize: 11, color: COLORS.muted }}>Avg Sleep</div>
                 </div>
               </div>
@@ -266,7 +257,6 @@ function Dashboard() {
         </Card>
       )}
 
-      {/* Goals tab */}
       {dashTab === "goals" && (
         <Card>
           <div style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Goals</div>
@@ -292,7 +282,6 @@ function Dashboard() {
   );
 }
 
-// ── ADD EXPENSE ───────────────────────────────────────────────────────────────
 function AddExpense({ onSaved }) {
   const [form, setForm] = useState({ date: today(), person: "", amount: "", category: "", description: "" });
   const [saving, setSaving] = useState(false);
@@ -323,7 +312,6 @@ function AddExpense({ onSaved }) {
   );
 }
 
-// ── EXPENSE HISTORY ───────────────────────────────────────────────────────────
 function ExpenseHistory() {
   const [rows, setRows] = useState([]);
   const [filter, setFilter] = useState("All");
@@ -365,7 +353,6 @@ function ExpenseHistory() {
   );
 }
 
-// ── FITNESS ───────────────────────────────────────────────────────────────────
 function AddFitness({ onSaved }) {
   const [form, setForm] = useState({ date: today(), person: "", exercise: "", sets: "", reps: "", water: "", sleep: "", notes: "" });
   const [saving, setSaving] = useState(false);
@@ -407,7 +394,6 @@ function AddFitness({ onSaved }) {
   );
 }
 
-// ── GOALS ─────────────────────────────────────────────────────────────────────
 function GoalsTab({ onSaved }) {
   const [form, setForm] = useState({ date: today(), person: "", goal: "", done: 0 });
   const [rows, setRows] = useState([]);
@@ -467,7 +453,6 @@ function GoalsTab({ onSaved }) {
   );
 }
 
-// ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [subTab, setSubTab] = useState("add");
