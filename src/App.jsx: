@@ -1,0 +1,157 @@
+import { useState, useEffect } from "react";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  "https://jtjzwclpepofzqoqxviz.supabase.co",
+  "sb_publishable_NqLzLXr69pijM5WGWoYtdg_l8PxOO8o"
+);
+
+const CATEGORIES = [
+  "Food & Drinks","Fuel / Petrol","Touch n Go / Toll","Electric Bill",
+  "House Rental","Water Bill","Internet / WiFi","Phone Bill","Groceries",
+  "Grab / Transport","Medical / Pharmacy","Insurance","Loan / PTPTN",
+  "Clothing","Entertainment","Subscription","Travel","Education",
+  "Savings / Investment","Other"
+];
+
+const EXERCISES = ["Running","Cycling","Gym","Swimming","Yoga","HIIT","Walking","Football","Badminton","Other"];
+const GOALS = ["Save RM500","Exercise 3x/week","Drink 2L water daily","Sleep 8 hours","Read 1 book","Cook at home","No takeaway week","Custom"];
+
+const COLORS = {
+  bg: "#0d0d0f",
+  surface: "#16161a",
+  card: "#1e1e24",
+  border: "#2a2a33",
+  accent: "#6c63ff",
+  accentSoft: "#6c63ff22",
+  green: "#22d3a5",
+  red: "#ff5f6d",
+  amber: "#f59e0b",
+  text: "#e8e8f0",
+  muted: "#6b6b80",
+  zakuan: "#6c63ff",
+  izyan: "#f472b6",
+};
+
+const today = () => new Date().toISOString().split("T")[0];
+const fmt = (n) => `RM ${Number(n || 0).toFixed(2)}`;
+
+function Tab({ label, active, onClick, color }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "8px 18px", borderRadius: 99, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
+      background: active ? (color || COLORS.accent) : "transparent",
+      color: active ? "#fff" : COLORS.muted,
+      transition: "all 0.2s",
+    }}>{label}</button>
+  );
+}
+
+function Card({ children, style }) {
+  return (
+    <div style={{
+      background: COLORS.card, borderRadius: 16, padding: 20,
+      border: `1px solid ${COLORS.border}`, ...style
+    }}>{children}</div>
+  );
+}
+
+function Input({ label, type = "text", value, onChange, options }) {
+  const base = {
+    width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${COLORS.border}`,
+    background: COLORS.surface, color: COLORS.text, fontSize: 14, boxSizing: "border-box",
+    outline: "none", marginTop: 4,
+  };
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ fontSize: 12, color: COLORS.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      {options ? (
+        <select value={value} onChange={e => onChange(e.target.value)} style={base}>
+          <option value="">Select…</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={value} onChange={e => onChange(e.target.value)} style={base} />
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, color }) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: color || COLORS.text, letterSpacing: -0.5 }}>{value}</div>
+      <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+function Toast({ msg, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 2500); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{
+      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+      background: COLORS.green, color: "#0d0d0f", padding: "12px 24px", borderRadius: 99,
+      fontWeight: 700, fontSize: 14, zIndex: 999, boxShadow: "0 4px 24px #0006",
+    }}>{msg}</div>
+  );
+}
+
+function Dashboard() {
+  const [stats, setStats] = useState({ monthSpend: 0, zakuan: 0, izyan: 0, workouts: 0, water: 0, goals: 0 });
+  const [breakdown, setBreakdown] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31`;
+
+      const [exp, fit, goals] = await Promise.all([
+        supabase.from("expenses").select("*").gte("date", monthStart).lte("date", monthEnd),
+        supabase.from("fitness").select("*").gte("date", monthStart).lte("date", monthEnd),
+        supabase.from("goals").select("*").gte("date", monthStart).lte("date", monthEnd),
+      ]);
+
+      const expenses = exp.data || [];
+      const zakuan = expenses.filter(e => e.person === "Zakuan").reduce((s, e) => s + Number(e.amount), 0);
+      const izyan = expenses.filter(e => e.person === "Izyan").reduce((s, e) => s + Number(e.amount), 0);
+
+      const catMap = {};
+      expenses.forEach(e => {
+        if (!catMap[e.category]) catMap[e.category] = { z: 0, i: 0 };
+        if (e.person === "Zakuan") catMap[e.category].z += Number(e.amount);
+        else catMap[e.category].i += Number(e.amount);
+      });
+      const total = zakuan + izyan;
+      const bd = Object.entries(catMap).map(([cat, v]) => ({
+        cat, z: v.z, i: v.i, combined: v.z + v.i,
+        pct: total ? Math.round(((v.z + v.i) / total) * 100) : 0
+      })).sort((a, b) => b.combined - a.combined);
+
+      const fitData = fit.data || [];
+      const waterEntries = fitData.filter(f => f.water);
+      const avgWater = waterEntries.length ? (waterEntries.reduce((s, f) => s + Number(f.water), 0) / waterEntries.length).toFixed(1) : 0;
+      const doneGoals = (goals.data || []).filter(g => g.done === 1).length;
+
+      setStats({ monthSpend: total, zakuan, izyan, workouts: fitData.length, water: avgWater, goals: doneGoals });
+      setBreakdown(bd);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const month = new Date().toLocaleString("en-MY", { month: "long", year: "numeric" });
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 1 }}>This Month · {month}</div>
+        <div style={{ fontSize: 28, fontWeight: 900, color: COLORS.text, marginTop: 4, letterSpacing: -1 }}>
+          {loading ? "—" : fmt(stats.monthSpend)}
+        </div>
+        <div style={{ fontSize: 13, color: COLORS.muted }}>combined spend</div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap:
