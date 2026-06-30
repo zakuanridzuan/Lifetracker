@@ -106,12 +106,12 @@ function Dashboard() {
     async function load() {
       const now = new Date();
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-31`;
-
+      const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-30`;
+      
       const [exp, fit, goals] = await Promise.all([
-        supabase.from("expenses").select("*").gte("date", monthStart).lte("date", monthEnd),
-        supabase.from("fitness").select("*").gte("date", monthStart).lte("date", monthEnd),
-        supabase.from("goals").select("*").gte("date", monthStart).lte("date", monthEnd),
+        supabase.from("expenses").select("*"),
+        supabase.from("fitness").select("*"),
+        supabase.from("goals").select("*"),
       ]);
 
       const expenses = exp.data || [];
